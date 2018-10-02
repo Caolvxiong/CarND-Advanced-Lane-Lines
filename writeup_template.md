@@ -1,6 +1,4 @@
-## Writeup Template
-
-### You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
+## Project 2: Advanced Lane Finding
 
 ---
 
@@ -16,16 +14,22 @@ The goals / steps of this project are the following:
 * Determine the curvature of the lane and vehicle position with respect to center.
 * Warp the detected lane boundaries back onto the original image.
 * Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
+* Define the final pipeline of processing image
+* Define the final video pipeline
 
 [//]: # (Image References)
 
-[image1]: ./examples/undistort_output.png "Undistorted"
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
-[image4]: ./examples/warped_straight_lines.jpg "Warp Example"
+[image01]: ./camera_cal/calibration1.jpg "Undistorted Chess Board"
+[image02]: ./output_images/calibration1.jpg "Undistorted Chess Board"
+[image1]: ./output_images/undist_image.jpg "Undistorted"
+[image2]: ./output_images/combined_binary.jpg "Combined Binary"
+[image3]: ./output_images/binary_warped.jpg "Binary Warped Image"
+[image4]: ./output_images/fit_poly_img.jpg "fit poly img"
 [image5]: ./examples/color_fit_lines.jpg "Fit Visual"
-[image6]: ./examples/example_output.jpg "Output"
-[video1]: ./project_video.mp4 "Video"
+[image6]: ./output_images/poly_line.jpg "Poly lines"
+[image7]: ./output_images/line_on_image.jpg "line_on_image"
+[image8]: ./output_images/data_on_image.jpg "data_on_image"
+[video1]: ./output_project_video.mp4 "Video"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
 
@@ -33,66 +37,64 @@ The goals / steps of this project are the following:
 
 ---
 
-### Writeup / README
-
-#### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.  [Here](https://github.com/udacity/CarND-Advanced-Lane-Lines/blob/master/writeup_template.md) is a template writeup for this project you can use as a guide and a starting point.  
-
-You're reading it!
-
 ### Camera Calibration
 
 #### 1. Briefly state how you computed the camera matrix and distortion coefficients. Provide an example of a distortion corrected calibration image.
 
-The code for this step is contained in the first code cell of the IPython notebook located in "./examples/example.ipynb" (or in lines # through # of the file called `some_file.py`).  
+I used function `cal_undist_params()` to calculate the mtx and dist needed for camera calibration. 
+In this function, I iterated each chesse board image, transform them to grayscale, then use `cv2.findChessboardCorners` function to find ret and all corners. 
+Then I used `cv2.calibrateCamera()` to generate `mtx` and `dist` parms needed for calibrating camera. 
+Then I used those params to distort the image, using function `undist_single_img`, Result example is like below:
 
-I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world. Here I am assuming the chessboard is fixed on the (x, y) plane at z=0, such that the object points are the same for each calibration image.  Thus, `objp` is just a replicated array of coordinates, and `objpoints` will be appended with a copy of it every time I successfully detect all chessboard corners in a test image.  `imgpoints` will be appended with the (x, y) pixel position of each of the corners in the image plane with each successful chessboard detection.  
+Raw image:
+![alt text 1][image01]  
 
-I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result: 
-
-![alt text][image1]
+Undist image:
+![alt text 2][image02]
 
 ### Pipeline (single images)
 
 #### 1. Provide an example of a distortion-corrected image.
 
-To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
-![alt text][image2]
+Then I used `undist_single_img()` function to correct real image:
+
+![alt text][image1]
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
+I defined several functions to find generate binary image:
+* `abs_sobel_thresh()` is using binary threshold depends on x or y;
+* `mag_thresh()` is for calculating gradient magnitude
+* `dir_threshold()` is for direction gradient
+* `hls_select()` is for s channel color threshold in HLS color space
 
-![alt text][image3]
+Then I combined the results of those functions in `pipeline()` function:
+
+![alt text][image2]
 
 #### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 
-The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
+The code for my perspective transform includes a function called `warp()`
+
+It takes an binary image and performs a perspective transform
 
 ```python
-src = np.float32(
-    [[(img_size[0] / 2) - 55, img_size[1] / 2 + 100],
-    [((img_size[0] / 6) - 10), img_size[1]],
-    [(img_size[0] * 5 / 6) + 60, img_size[1]],
-    [(img_size[0] / 2 + 55), img_size[1] / 2 + 100]])
-dst = np.float32(
-    [[(img_size[0] / 4), 0],
-    [(img_size[0] / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), 0]])
+    src = np.float32([[1280,720],[720, 450], [560, 450], [0,720]])
+    dst = np.float32([[1280,720],[1280,0],[0,0],[0,720]])
 ```
 
 This resulted in the following source and destination points:
 
 | Source        | Destination   | 
 |:-------------:|:-------------:| 
-| 585, 460      | 320, 0        | 
-| 203, 720      | 320, 720      |
-| 1127, 720     | 960, 720      |
-| 695, 460      | 960, 0        |
+| 1280,720      | 1280,720        | 
+| 720, 450      | 1280,0      |
+| 560, 450      | 0,0      |
+| 0, 720        | 0,720        |
 
-I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
+The perspective transform result is:
 
-![alt text][image4]
+![alt text][image3]
 
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
@@ -100,15 +102,38 @@ Then I did some other stuff and fit my lane lines with a 2nd order polynomial ki
 
 ![alt text][image5]
 
+The code is in `find_lane_pixels()` function and `fit_polynomial()` function. 
+
+What the do is taking the binary warped image and find all pixels that belongs to right or left line. In detail:
+Firstly it find the bottom pixels, then use sliding windows method to move up and shift some pixels to find all points.
+![alt text][image4]
+
+Then we use `np.polyfit` in `fit_polynomial` function to fit a second order polynomial for each line. Then use y value in points to caculate x value, and draw on the image: 
+![alt text][image6]
+
+ 
+
 #### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
-I did this in lines # through # in my code in `my_other_file.py`
+I use `measure_curvature_real()` function to detect the lane curvature and distance to center of lane.
+
+Basically it takes in the binary warped image and use `fit_polynomial` to caculate the fit for lines, the use the poly to calculate the radius of curvature.
+
+used 
+```python
+ym_per_pix = 3.048/100 # meters per pixel in y dimension
+xm_per_pix = 3.7/900 # meters per pixel in x dimension
+```
+as transform params to real life.
 
 #### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
 
-I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
+I used `draw_lane()` method, taking the original image, binary image and left and right fit, transform the lines back to normal size and shape , then add it on to orinial image:
+![alt text][image7]
 
-![alt text][image6]
+Lastly I draw the calculated data on to the output image:
+ 
+![alt text][image8]
 
 ---
 
@@ -116,7 +141,7 @@ I implemented this step in lines # through # in my code in `yet_another_file.py`
 
 #### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
-Here's a [link to my video result](./project_video.mp4)
+Here's a [link to my video result](./output_project_video.mp4)
 
 ---
 
@@ -124,4 +149,11 @@ Here's a [link to my video result](./project_video.mp4)
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+I found this project has more challenge than the first one. But it has more fun!
+
+Problem I had:
+
+* I spent too much time on python's libraries.
+* I had a bad time of using the workspace.
+* I should use more code wrote by myself instead of using code from lessons.
+* I want to spend more time to polish the code, so I'll come back again!
